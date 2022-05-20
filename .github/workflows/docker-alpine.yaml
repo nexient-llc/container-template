@@ -1,12 +1,11 @@
 name: Build, Test, and Publish Alpine Image
 
 on:
-  release:
-    types: [published]
   push:
-    branches: [main]
-  tags:
-    - "v**"
+    branches:
+      - main
+    tags:
+      - "**"
 
 jobs:
   push_to_registry:
