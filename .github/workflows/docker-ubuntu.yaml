@@ -1,0 +1,58 @@
+name: Build, Test, and Publish Ubuntu Image
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+  tags:
+    - "v**"
+
+jobs:
+  push_to_registry:
+    name: Push Ubuntu Image to Docker Hub
+    runs-on: ubuntu-latest
+    env:
+      # Define tags to use for Docker images based on Git tags/branches (for docker/metadata-action)
+      # For a new commit on default branch (main), use the literal tag 'latest' on Docker image.
+      # For a new commit on other branches, use the branch name as the tag for Docker image.
+      # For a new tag, copy that tag name as the tag for Docker image.
+      IMAGE_TAGS: |
+        type=raw,value=latest,enable=${{ endsWith(github.ref, github.event.repository.default_branch) }},suffix=-ubuntu
+        type=ref,event=branch,enable=${{ !endsWith(github.ref, github.event.repository.default_branch) }},suffix=-ubuntu
+        type=ref,event=tag,suffix=-ubuntu
+      # Turn off latest tag for non-default OS
+      TAGS_FLAVOR: |
+        latest=false
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: nexientdevops/container-template
+      - name: Build Ubuntu Based Image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./Dockerfiles/Ubuntu/2204
+          push: false
+          tags: test
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Run Container Tests
+        uses: ./.github/actions/container-structure-test
+        with:
+          image: nexientdevops/container-template:test
+          config: test.yaml
+      - name: Push Ubuntu Based Image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./Dockerfiles/Ubuntu/2204
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
